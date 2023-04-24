@@ -1,71 +1,27 @@
-import itertools
-from pprint import pprint
+from flask import Flask, request
 
-from flask import Flask, request, jsonify
-from nltk.tree import *
+from tools import *
 
 
+# initializing Flask app and setting config
 app = Flask(__name__)
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 
 
-@app.route('/paraphrase', methods=['GET'])
+@app.route('/paraphrase', methods=['GET'])                      # a decorator who implements API endpoint
 def resp():
+    # getting the tree in the string form, limit, and nodes for which the search is performed
     string_tree = request.args.get('tree')
-    tree = Tree.fromstring(string_tree)
-    tree.pretty_print()
-    nodes = find_same_nodes(tree, 'NP')
-    combos = generate_combos(nodes)
-    generate_trees(tree, nodes, combos)
-    return 'None'
+    limit = int(request.args.get('limit')) if request.args.get('limit') else 20
+    key_nodes = request.args.get('nodes').split(', ') if request.args.get('nodes') else ['NP']
 
+    tree = Tree.fromstring(string_tree)                         # initializing tree from a string form
+    nodes = find_key_nodes(tree, key_nodes)                     # finding key nodes
+    combinations = generate_combinations(nodes)                 # generating combinations
+    trees = generate_trees(tree, nodes, combinations, limit)    # generating trees
 
-def find_same_nodes(in_tree, node_name):
-    nodes = []
-
-    def in_depth(node, pos):
-        check_node(node, pos)
-
-        for i, n in enumerate(node):
-            if len(n) > 1:
-                in_depth(n, pos + (i, ))
-
-    def check_node(node, pos):
-        add_node = []
-        for i, n in enumerate(node):
-            if n.label() == node_name:
-                add_node.append(pos + (i, ))
-            elif n.label() in (',', 'CC'):
-                pass
-            else:
-                return
-        nodes.append(add_node)
-
-    in_depth(in_tree, tuple())
-    return nodes
-
-
-def generate_combos(nodes):
-    all_permutations = []
-    for n in nodes:
-        all_permutations.append(tuple(itertools.permutations(n)))
-    combos = tuple(itertools.product(*all_permutations))
-    return combos
-
-
-def generate_trees(tree, nodes, combos):
-    trees = {
-        'paraphrases': []
-    }
-    default_nodes = []
-    for n in nodes:
-        default_nodes.append([tree[i] for i in n])
-
-    for c in combos:
-        replacing_nodes = []
-        for n in c:
-            replacing_nodes.append([tree[i] for i in n])
+    return trees
 
 
 if __name__ == '__main__':
     app.run()
-
